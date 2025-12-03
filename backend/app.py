@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import pickle
 import numpy as np
+import os
 
 app = Flask(__name__)
 CORS(app)
@@ -15,13 +16,11 @@ with open("model.pkl", "rb") as f:
 # -----------------------------
 # Input mapping for categorical features
 # -----------------------------
-# Map dropdown/string values to numbers
 mapping = {
-    "wbc": {"0-2":0, "3-5":1, "6-10":2, "11-20":3, ">20":4},
-    "rbc": {"0-2":0, "3-5":1, "6-10":2, "11-20":3, ">20":4},
-    "protein": {"Negative":0, "Trace":1, "1+":2, "2+":3, "3+":4, "4+":5},
-    "bacteria": {"None":0, "Few":1, "Moderate":2, "Many":3},
-    # Add more mappings as needed
+    "wbc": {"0-2": 0, "3-5": 1, "6-10": 2, "11-20": 3, ">20": 4},
+    "rbc": {"0-2": 0, "3-5": 1, "6-10": 2, "11-20": 3, ">20": 4},
+    "protein": {"Negative": 0, "Trace": 1, "1+": 2, "2+": 3, "3+": 4, "4+": 5},
+    "bacteria": {"None": 0, "Few": 1, "Moderate": 2, "Many": 3},
 }
 
 def preprocess_input(data):
@@ -29,10 +28,10 @@ def preprocess_input(data):
     processed = {}
     for key, value in data.items():
         if key in mapping:
-            processed[key] = mapping[key].get(value, 0)  # default to 0 if unknown
+            processed[key] = mapping[key].get(value, 0)
         else:
             try:
-                processed[key] = float(value)  # numeric input (like age)
+                processed[key] = float(value)
             except:
                 processed[key] = 0
     return [list(processed.values())]
@@ -51,19 +50,32 @@ def determine_risk(proba: float) -> str:
 def get_recommendations(diagnosis: str, risk: str):
     if diagnosis.lower() == "negative":
         return ["Maintain hydration", "Monitor symptoms", "Regular checkups"]
+
     if risk == "high":
-        return ["Seek medical consultation immediately", "Consider urine culture test", "Increase water intake"]
+        return [
+            "Seek medical consultation immediately",
+            "Consider urine culture test",
+            "Increase water intake"
+        ]
     elif risk == "moderate":
-        return ["Monitor symptoms for 48 hours", "Increase fluid intake", "Consult doctor if symptoms worsen"]
+        return [
+            "Monitor symptoms for 48 hours",
+            "Increase fluid intake",
+            "Consult doctor if symptoms worsen"
+        ]
     else:
-        return ["Low risk detected", "Maintain hydration", "Monitor for any changes"]
+        return [
+            "Low risk detected",
+            "Maintain hydration",
+            "Monitor for any changes"
+        ]
 
 # -----------------------------
 # Routes
 # -----------------------------
 @app.route("/")
 def home():
-    return "Urinalysis Prediction API running ✅"
+    return "Urinalysis Prediction API is running successfully 🚀"
 
 @app.route("/predict", methods=["POST"])
 def predict():
@@ -74,7 +86,7 @@ def predict():
 
         input_row = preprocess_input(data)
 
-        prediction = model.predict(input_row)[0]  # "positive"/"negative"
+        prediction = model.predict(input_row)[0]
         proba = model.predict_proba(input_row)[0][1]
         confidence = round(proba * 100, 2)
 
@@ -87,9 +99,15 @@ def predict():
             "confidence": confidence,
             "recommendations": recommendations
         })
+
     except Exception as e:
         print("Prediction ERROR:", e)
         return jsonify({"error": str(e)}), 500
 
+
+# -----------------------------
+# Production server for Render
+# -----------------------------
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
